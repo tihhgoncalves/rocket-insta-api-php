@@ -2,6 +2,16 @@
 
 require '../vendor/autoload.php';
 
+// Carrega credenciais do arquivo .env localizado nesta pasta
+$envFile = __DIR__ . '/.env';
+$env = [];
+if (file_exists($envFile)) {
+    $env = parse_ini_file($envFile);
+}
+
+$username = $env['USERNAME'] ?? '';
+$password = $env['PASSWORD'] ?? '';
+
 use RocketInsta\rocketInsta;
 
 $insta = new rocketInsta(true);
@@ -9,7 +19,7 @@ $insta = new rocketInsta(true);
 if ($insta->loadSession()) {
     echo "Sessão já ativa!";
 } else {
-    $loginResult = $insta->login('poucafe.oficial', 'ZSefZFUWMaGu5R', true);
+    $loginResult = $insta->login($username, $password, true);
 
     if ($loginResult === true) {
         echo "Login bem-sucedido!";

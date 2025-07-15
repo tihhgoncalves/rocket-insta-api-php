@@ -30,4 +30,5 @@ error_log
 .env
 .env.local
 .env.*.php
+tests/.env
 insta_session.txt
