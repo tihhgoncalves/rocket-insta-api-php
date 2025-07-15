@@ -17,3 +17,10 @@ if ($insta->loadSession()) {
         echo "Falha no login: " . $loginResult;  // Exibe o erro específico
     }
 }
+
+$userInfo = $insta->me();
+if ($userInfo) {
+    print_r($userInfo);
+} else {
+    echo "Não foi possível obter informações do usuário.";
+}

@@ -251,8 +251,60 @@ class rocketInsta
         return false;
     }
 
+    public function me()
+    {
+        // Garante que o cookie está setado
+        curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
+        curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
+        curl_setopt($this->session, CURLOPT_URL, "https://www.instagram.com/accounts/edit/");
+        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($this->session, CURLOPT_HEADER, false);
+        curl_setopt($this->session, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($this->session, CURLOPT_USERAGENT, $this->userAgent);
 
+        $response = curl_exec($this->session);
 
+        if (curl_errno($this->session)) {
+            if ($this->debug) {
+                echo "cURL Error: " . curl_error($this->session);
+            }
+            return false;
+        }
+
+        $return_me = [];
+
+        // A resposta é um HTML, mas contém um JSON com os dados do usuário
+        // Tenta extrair o JSON do HTML
+        if (preg_match('/<script type="application\/json" id="__NEXT_DATA__">(.+?)<\/script>/', $response, $matches)) {
+            $json = json_decode($matches[1], true);
+            if ($json && isset($json['props']['pageProps']['formData'])) {
+                return $json['props']['pageProps']['formData'];
+            }
+        }
+
+        
+        // Alternativamente, tente extrair campos básicos do HTML
+        if (preg_match('/"username":"([^"]+)"/', $response, $matches)) {
+            $return_me['username'] = $matches[1];
+        }
+        if (preg_match('/"biography":"([^"]+)"/', $response, $matches)) {
+            $return_me['bio'] = $matches[1];
+        }
+        if (preg_match('/"external_url":"([^"]+)"/', $response, $matches)) {
+            $return_me['external_url'] = $matches[1];
+        }
+        if (preg_match('/"full_name":"([^"]+)"/', $response, $matches)) {
+            $return_me['full_name'] = $matches[1];
+        }
+
+        
+        if ($this->debug) {
+            echo "<h2>[me]</h2>";
+            echo "<pre>" . htmlspecialchars(print_r($return_me, true)) . "</pre>";
+        }
+
+        return $return_me;
+    }
 
     public function __destruct()
     {
