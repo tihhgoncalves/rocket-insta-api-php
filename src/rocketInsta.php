@@ -9,20 +9,42 @@ class rocketInsta
     private $session;
     private $debug;
 
-    public function __construct($debug = false, $cookieFile = 'insta_cookie.txt')
+    public function __construct($debug = false, $cookieFile = null)
     {
-        $this->debug = $debug;  // Definindo o parâmetro de debug
+        $this->debug = $debug;
+        if ($cookieFile === null) {
+            $cookieFile = __DIR__ . '/insta_session.txt';
+        }
         $this->cookieFile = $cookieFile;
-        $this->userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
+        $this->userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36';
         $this->session = curl_init();
     }
 
-    public function login($username, $password)
+    public function login($username, $password, $saveSession = false)
     {
+
+        if ($saveSession) {
+
+            // Garante que o arquivo de cookies exista e esteja acessível
+            
+            if (!file_exists($this->cookieFile)) {
+                file_put_contents($this->cookieFile, '');
+            }
+
+            if (!is_readable($this->cookieFile)) {
+                die("Erro: Não foi possível ler o arquivo de cookies.");
+            }
+
+            // (Opcional) Garante que tenha permissão
+            @chmod($this->cookieFile, 0666);
+
+            // Sempre setar antes de qualquer requisição
+            curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
+            curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
+        }
+
         // Captura o CSRF token antes de tentar o login
         $csrfToken = $this->getCsrfToken();
-
-        die('PAROU!');
 
         if (!$csrfToken) {
             return 'Erro: Não foi possível obter o CSRF Token';
@@ -45,9 +67,9 @@ class rocketInsta
             "sec-fetch-dest: empty",
             "sec-fetch-mode: cors",
             "sec-fetch-site: same-origin",
-            "user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+            "user-agent: " . $this->userAgent,
             "x-asbd-id: 359341",
-            "x-csrftoken: " . $csrfToken, // CSRF token capturado
+            "x-csrftoken: " . $csrfToken,
             "x-ig-app-id: 936619743392459",
             "x-ig-www-claim: hmac.AR3hHCS5xR8ssjwi_S8xMmc92j6QpdInC8c7x8GUKIN2IiOK",
             "x-instagram-ajax: 1024758508",
@@ -57,8 +79,8 @@ class rocketInsta
 
         // Parâmetros de POST que são enviados com a requisição
         $postFields = [
-            'enc_password' => '%23PWD_INSTAGRAM_BROWSER%3A10%3A1752580094%3AARBQAAwac08aIT1ky8r92Rl%2BWfogcuF%2FTwNLoYpL2O7aycwGjIX%2FlgJsPt1hwGkzkQAmDWxSAy3yRefcwafECbazEDqPePDTOyrtooaCyTCPwaQlVRSMt3IJW%2BTNasaItuTB8VY96MlZQK5GCfVH', // Senha codificada
-            'username' => $username,  // Nome de usuário
+            'enc_password' => '#PWD_INSTAGRAM_BROWSER:0:' . time() . ':' . $password,
+            'username' => $username,
             'queryParams' => '{"flo":"true"}',  // Parâmetros de consulta
             'optIntoOneTap' => 'false',  // Opcional
             'trustedDeviceRecords' => '{}',  // Device records, pode ser opcional
@@ -72,42 +94,63 @@ class rocketInsta
         curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($this->session, CURLOPT_POST, true);
         curl_setopt($this->session, CURLOPT_POSTFIELDS, http_build_query($postFields));  // Envia os parâmetros no corpo da requisição
-        curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);  // Cabeçalhos HTTP
+        curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($this->session, CURLOPT_HEADER, false);
+
+
+        curl_setopt($this->session, CURLOPT_USERAGENT, $this->userAgent);
+
+        if ($saveSession) {
+            curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
+            curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
+        }
+
+        curl_setopt($this->session, CURLOPT_FOLLOWLOCATION, false);
 
         // Executa a requisição e obtém a resposta
         $response = curl_exec($this->session);
+        $data = json_decode($response, true);
 
         // Verifica se houve erro no cURL
         if (curl_errno($this->session)) {
             echo "cURL Error: " . curl_error($this->session);
         }
 
-        // Exibe os detalhes da requisição e a resposta (para debugar)
-        echo "<pre>";
-        print_r(curl_getinfo($this->session)); // Detalhes da requisição cURL
-        print_r($response); // Resposta da requisição (erro ou sucesso)
-        echo "</pre>";
+        if ($this->debug) {
+            echo "<h2>[Login Response]</h2>";
+            echo "<pre>" . htmlspecialchars($response) . "</pre>";
+        }
 
-        // Decodifica a resposta JSON
-        $data = json_decode($response, true);
-
-        // Verifica se o login foi bem-sucedido
         if (isset($data['authenticated']) && $data['authenticated'] == true) {
+            // Força o cURL a processar e salvar os cookies fazendo uma requisição GET
+            curl_setopt($this->session, CURLOPT_URL, "https://www.instagram.com/");
+            curl_setopt($this->session, CURLOPT_POST, false);
+            curl_setopt($this->session, CURLOPT_HTTPGET, true);
+            curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
+            curl_exec($this->session);
+
+            curl_close($this->session); // Fecha para forçar o flush dos cookies
+            $this->session = curl_init(); // Reabre para uso futuro
+            echo('PASSOU AQUI');
             return true;  // Login bem-sucedido
         }
 
-        // Caso contrário, verifica o tipo de erro
+        if (isset($data['error_type']) && $data['error_type'] === 'checkpoint_challenge_required') {
+            $url = isset($data['checkpoint_url']) ? 'https://www.instagram.com' . $data['checkpoint_url'] : '(sem URL)';
+            return 'Desafio de segurança necessário. Acesse: ' . $url;
+        }
+
         if (isset($data['message'])) {
-            if (strpos($data['message'], 'challenge') !== false) {
-                return 'Desafio de segurança';  // Desafio de segurança (2FA ou outro)
-            } elseif (strpos($data['message'], 'password') !== false) {
-                return 'Senha incorreta';  // Senha errada
+            if (str_contains($data['message'], 'challenge')) {
+                return 'Desafio de segurança';
+            } elseif (str_contains($data['message'], 'password')) {
+                return 'Senha incorreta';
             } else {
-                return 'Erro desconhecido: ' . $data['message'];  // Outro erro
+                return 'Erro desconhecido: ' . $data['message'];
             }
         }
 
-        return 'Falha no login!';  // Caso não seja possível identificar o erro
+        return 'Falha no login! (nenhum erro conhecido identificado)';
     }
 
 
@@ -115,13 +158,9 @@ class rocketInsta
     {
         curl_setopt($this->session, CURLOPT_URL, "https://www.instagram.com/accounts/login/");
         curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($this->session, CURLOPT_HEADER, true);  // Para capturar os cabeçalhos e cookies
-        curl_setopt($this->session, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36');
+        curl_setopt($this->session, CURLOPT_HEADER, true);
+        curl_setopt($this->session, CURLOPT_USERAGENT, $this->userAgent);
         curl_setopt($this->session, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($this->session, CURLOPT_COOKIEJAR, 'cookies.txt');
-        curl_setopt($this->session, CURLOPT_COOKIEFILE, 'cookies.txt');
-
-
 
         // Modificar o cabeçalho User-Agent para simular um navegador
         $headers = [
@@ -136,9 +175,6 @@ class rocketInsta
         if (curl_errno($this->session)) {
             echo "cURL Error: " . curl_error($this->session);
         }
-
-        // Exibe a resposta para depuração
-        echo "<pre>" . htmlentities($response) . "</pre>";  // Exibe a resposta HTML para depuração
 
         // Captura os cookies da resposta (onde o CSRF token normalmente é armazenado)
         $cookies = [];
@@ -161,7 +197,58 @@ class rocketInsta
             }
         }
 
+
+        // Exibe a resposta para depuração
+        if ($this->debug) {
+            echo "<h2>[getCsrfToken]</h2>";
+            echo "<pre>getCsrfToken: " . $csrfToken . "</pre>";
+        }
+
+
         return $csrfToken;
+    }
+
+    public function loadSession()
+    {
+        // Verifica se o arquivo de cookies existe e é legível
+        if (!file_exists($this->cookieFile) || !is_readable($this->cookieFile)) {
+            return false;
+        }
+
+        // Configura o cURL para usar o cookie salvo
+        curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
+        curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
+        curl_setopt($this->session, CURLOPT_URL, "https://www.instagram.com/accounts/edit/");
+        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($this->session, CURLOPT_HEADER, false);
+        curl_setopt($this->session, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($this->session, CURLOPT_USERAGENT, $this->userAgent);
+
+        // Faz uma requisição para uma página que só logado acessa
+        $response = curl_exec($this->session);
+
+        // Verifica se houve erro no cURL
+        if (curl_errno($this->session)) {
+            if ($this->debug) {
+                echo "cURL Error: " . curl_error($this->session);
+            }
+            return false;
+        }
+
+        // Se a resposta contiver o campo "username" ou algo típico de usuário logado, considera válido
+        if (strpos($response, '"username"') !== false || strpos($response, 'Editar perfil') !== false) {
+            if ($this->debug) {
+                echo "<h2>[loadSession]</h2>";
+                echo "<pre>Sessão ativa!</pre>";
+            }
+            return true;
+        }
+
+        if ($this->debug) {
+            echo "<h2>[loadSession]</h2>";
+            echo "<pre>Sessão inválida ou expirada.</pre>";
+        }
+        return false;
     }
 
 
