@@ -15,7 +15,9 @@ class rocketInsta
         'disableComments' => false,
         'location' => null,
         'location_id' => null,
-        // Adicione outros padrões conforme necessário
+        'autosize' => true,
+        'width' => null,   // novo
+        'height' => null,  // novo
     ];
 
     public function __construct($debug = false, $cookieFile = null)
@@ -337,6 +339,16 @@ class rocketInsta
         $imageSize = filesize($imagePath);
         $mime = mime_content_type($imagePath);
 
+        if ($opts['autosize']) {
+            list($width, $height) = getimagesize($imagePath);
+        } elseif ($opts['width'] && $opts['height']) {
+            $width = $opts['width'];
+            $height = $opts['height'];
+        } else {
+            $width = 1229;
+            $height = 1229;
+        }
+
         $headers = [
             "accept: */*",
             "content-type: $mime",
@@ -351,8 +363,8 @@ class rocketInsta
             "x-instagram-rupload-params: " . json_encode([
                 "media_type" => 1,
                 "upload_id" => $upload_id,
-                "upload_media_height" => 1229, // ajuste conforme sua imagem
-                "upload_media_width" => 1229   // ajuste conforme sua imagem
+                "upload_media_height" => $height,
+                "upload_media_width" => $width
             ]),
             "x-asbd-id: 359341",
             "x-instagram-ajax: 1024760320",
@@ -390,12 +402,6 @@ class rocketInsta
             'archive_only' => 'false'
         ];
 
-        if ($opts['location_id']) {
-            $postFieldsArr['location_id'] = $opts['location_id'];
-        }
-        if ($opts['location']) {
-            $postFieldsArr['location'] = json_encode($opts['location']);
-        }
 
         $postFields = http_build_query($postFieldsArr);
 
