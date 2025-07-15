@@ -142,7 +142,7 @@ class rocketInsta
 
             curl_close($this->session); // Fecha para forçar o flush dos cookies
             $this->session = curl_init(); // Reabre para uso futuro
-            echo ('PASSOU AQUI');
+
             return true;  // Login bem-sucedido
         }
 
@@ -220,6 +220,8 @@ class rocketInsta
             echo "<pre>getCsrfToken: " . $csrfToken . "</pre>";
         }
 
+        // Salva o token na propriedade da classe
+        $this->csrfToken = $csrfToken;
 
         return $csrfToken;
     }
