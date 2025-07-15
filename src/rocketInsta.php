@@ -455,4 +455,43 @@ class rocketInsta
         }
         return null;
     }
+
+    public function searchUsers($query)
+    {
+        $url = "https://www.instagram.com/api/v1/web/search/topsearch/?context=user&include_reel=true&query=" . urlencode($query);
+        $headers = [
+            "accept: */*",
+            "user-agent: " . $this->userAgent,
+            "x-ig-app-id: 936619743392459",
+            "x-requested-with: XMLHttpRequest",
+            "x-csrftoken: " . $this->getCsrfToken(),
+            "referer: https://www.instagram.com/",
+            "x-asbd-id: 359341",
+            "x-web-session-id: x1r9nc:1ungui:knycvf"
+        ];
+        curl_setopt($this->session, CURLOPT_URL, $url);
+        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
+        curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
+
+        $response = curl_exec($this->session);
+        if ($this->debug) {
+            echo "<h2>[searchUser]</h2>";
+            echo "<pre>" . htmlspecialchars($response) . "</pre>";
+        }
+        $data = json_decode($response, true);
+        return $data['users'] ?? [];
+    }
+
+    public function searchUser($username){
+        $users = $this->searchUsers('cafecomnews');
+
+        foreach ($users as $user) {
+            if (isset($user['user']) && $user['user']['username'] === $username) {
+                return $user['user'];
+            }
+        }
+        return null; // Retorna null se o usuário não for encontrado
+    }
 }

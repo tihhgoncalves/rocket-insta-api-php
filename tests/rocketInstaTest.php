@@ -36,6 +36,12 @@ if ($userInfo) {
 }
 
 
+// Busca usuário
+$users = $insta->searchUser('cafecomnewsx');
+
+
+die('[PAROU]');
+
 $result = $insta->post('photo.jpg', [
     'caption' => 'Minha legenda! ' . date('Y-m-d H:i:s'), // legenda do post
     'hideLikes' => true, // esconder likes
