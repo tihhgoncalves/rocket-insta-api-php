@@ -1,0 +1,32 @@
+# Dependências do Composer
+/vendor/
+
+# Arquivos de sessão, cache ou cookies
+*.log
+cookies.txt
+debug.log
+
+# Arquivos de testes locais
+/tests/*.tmp
+/tests/*.log
+/tests/*.bak
+
+# Configurações do sistema operacional/IDE
+.DS_Store
+Thumbs.db
+
+# Arquivos do VSCode
+.vscode/
+
+# Arquivos de build temporários
+*.swp
+*.swo
+*.bak
+
+# Logs de execução
+error_log
+
+# Arquivos de credenciais (se houver)
+.env
+.env.local
+.env.*.php
