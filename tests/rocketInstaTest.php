@@ -25,9 +25,21 @@ if ($userInfo) {
 } else {
     echo "Não foi possível obter informações do usuário.";
 }
-*/
+ */
 
-$result = $insta->post('photo.jpg', 'Minha legenda! ' . date('Y-m-d H:i:s'));
+$result = $insta->post('photo.jpg',[
+    'caption' =>  'Minha legenda! ' . date('Y-m-d H:i:s'), // legenda do post
+    'hideLikes' => true, // esconder likes
+    'disableComments' => true, // desabilita comentários
+    'location_id' => '1234567890',
+    'location' => [
+        "name" => "Praça da Sé",
+        "lat" => -23.55052,
+        "lng" => -46.633308
+    ]
+]);
+
+
 if ($result === true) {
     echo "Post feito com sucesso!";
 } else {

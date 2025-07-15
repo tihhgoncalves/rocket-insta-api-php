@@ -9,6 +9,14 @@ class rocketInsta
     private $session;
     private $debug;
     private $csrfToken = null;
+    private $defaultPostOptions = [
+        'caption' => '',
+        'hideLikes' => false,
+        'disableComments' => false,
+        'location' => null,
+        'location_id' => null,
+        // Adicione outros padrões conforme necessário
+    ];
 
     public function __construct($debug = false, $cookieFile = null)
     {
@@ -314,11 +322,14 @@ class rocketInsta
         return $return_me;
     }
 
-    public function post($imagePath, $caption = '')
+    public function post($imagePath, $options = [])
     {
         if (!file_exists($imagePath)) {
             return 'Arquivo de imagem não encontrado!';
         }
+
+        // Mescla opções recebidas com os padrões
+        $opts = array_merge($this->defaultPostOptions, $options);
 
         $upload_id = strval(round(microtime(true) * 1000));
         $uploadUrl = "https://i.instagram.com/rupload_igphoto/fb_uploader_$upload_id";
@@ -365,19 +376,28 @@ class rocketInsta
 
         // Agora configure o post
         $postUrl = 'https://www.instagram.com/api/v1/media/configure/';
-        $postFields = http_build_query([
+        $postFieldsArr = [
             'upload_id' => $upload_id,
-            'caption' => $caption,
+            'caption' => $opts['caption'],
             'media_share_flow' => 'creation_flow',
             'source_type' => 'library',
-            'disable_comments' => '0',
-            'like_and_view_counts_disabled' => '0',
+            'disable_comments' => $opts['disableComments'] ? '1' : '0',
+            'like_and_view_counts_disabled' => $opts['hideLikes'] ? '1' : '0',
             'share_to_facebook' => '',
             'share_to_fb_destination_type' => 'USER',
             'is_unified_video' => '1',
             'is_meta_only_post' => '0',
             'archive_only' => 'false'
-        ]);
+        ];
+
+        if ($opts['location_id']) {
+            $postFieldsArr['location_id'] = $opts['location_id'];
+        }
+        if ($opts['location']) {
+            $postFieldsArr['location'] = json_encode($opts['location']);
+        }
+
+        $postFields = http_build_query($postFieldsArr);
 
         $headers = [
             "accept: */*",
