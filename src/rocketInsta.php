@@ -8,6 +8,7 @@ class rocketInsta
     private $userAgent;
     private $session;
     private $debug;
+    private $csrfToken = null;
 
     public function __construct($debug = false, $cookieFile = null)
     {
@@ -26,7 +27,7 @@ class rocketInsta
         if ($saveSession) {
 
             // Garante que o arquivo de cookies exista e esteja acessível
-            
+
             if (!file_exists($this->cookieFile)) {
                 file_put_contents($this->cookieFile, '');
             }
@@ -131,7 +132,7 @@ class rocketInsta
 
             curl_close($this->session); // Fecha para forçar o flush dos cookies
             $this->session = curl_init(); // Reabre para uso futuro
-            echo('PASSOU AQUI');
+            echo ('PASSOU AQUI');
             return true;  // Login bem-sucedido
         }
 
@@ -156,6 +157,11 @@ class rocketInsta
 
     public function getCsrfToken()
     {
+
+        if($this->csrfToken) {
+            return $this->csrfToken; // Retorna o CSRF token já carregado
+        }
+        
         curl_setopt($this->session, CURLOPT_URL, "https://www.instagram.com/accounts/login/");
         curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($this->session, CURLOPT_HEADER, true);
@@ -237,9 +243,11 @@ class rocketInsta
 
         // Se a resposta contiver o campo "username" ou algo típico de usuário logado, considera válido
         if (strpos($response, '"username"') !== false || strpos($response, 'Editar perfil') !== false) {
+            $this->csrfToken = $this->extractCsrfTokenFromCookieFile();
             if ($this->debug) {
                 echo "<h2>[loadSession]</h2>";
                 echo "<pre>Sessão ativa!</pre>";
+                echo "<pre>CSRF carregado: " . $this->csrfToken . "</pre>";
             }
             return true;
         }
@@ -282,7 +290,7 @@ class rocketInsta
             }
         }
 
-        
+
         // Alternativamente, tente extrair campos básicos do HTML
         if (preg_match('/"username":"([^"]+)"/', $response, $matches)) {
             $return_me['username'] = $matches[1];
@@ -297,7 +305,7 @@ class rocketInsta
             $return_me['full_name'] = $matches[1];
         }
 
-        
+
         if ($this->debug) {
             echo "<h2>[me]</h2>";
             echo "<pre>" . htmlspecialchars(print_r($return_me, true)) . "</pre>";
@@ -306,8 +314,117 @@ class rocketInsta
         return $return_me;
     }
 
-    public function __destruct()
+    public function post($imagePath, $caption = '')
     {
-        curl_close($this->session);
+        if (!file_exists($imagePath)) {
+            return 'Arquivo de imagem não encontrado!';
+        }
+
+        $upload_id = strval(round(microtime(true) * 1000));
+        $uploadUrl = "https://i.instagram.com/rupload_igphoto/fb_uploader_$upload_id";
+        $imageData = file_get_contents($imagePath);
+        $imageSize = filesize($imagePath);
+        $mime = mime_content_type($imagePath);
+
+        $headers = [
+            "accept: */*",
+            "content-type: $mime",
+            "origin: https://www.instagram.com",
+            "referer: https://www.instagram.com/",
+            "user-agent: " . $this->userAgent,
+            "x-entity-type: $mime",
+            "x-entity-name: fb_uploader_$upload_id",
+            "x-entity-length: $imageSize",
+            "offset: 0",
+            "x-ig-app-id: 936619743392459",
+            "x-instagram-rupload-params: " . json_encode([
+                "media_type" => 1,
+                "upload_id" => $upload_id,
+                "upload_media_height" => 1229, // ajuste conforme sua imagem
+                "upload_media_width" => 1229   // ajuste conforme sua imagem
+            ]),
+            "x-asbd-id: 359341",
+            "x-instagram-ajax: 1024760320",
+            "x-web-session-id: 6a7f31:tcyzde:uphubx",
+            "priority: u=1, i"
+        ];
+
+        curl_setopt($this->session, CURLOPT_URL, $uploadUrl);
+        curl_setopt($this->session, CURLOPT_POST, true);
+        curl_setopt($this->session, CURLOPT_POSTFIELDS, $imageData);
+        curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
+        curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
+
+        $uploadResponse = curl_exec($this->session);
+        if ($this->debug) {
+            echo "<h2>[Upload Response]</h2>";
+            echo "<pre>" . htmlspecialchars($uploadResponse) . "</pre>";
+        }
+
+        // Agora configure o post
+        $postUrl = 'https://www.instagram.com/api/v1/media/configure/';
+        $postFields = http_build_query([
+            'upload_id' => $upload_id,
+            'caption' => $caption,
+            'media_share_flow' => 'creation_flow',
+            'source_type' => 'library',
+            'disable_comments' => '0',
+            'like_and_view_counts_disabled' => '0',
+            'share_to_facebook' => '',
+            'share_to_fb_destination_type' => 'USER',
+            'is_unified_video' => '1',
+            'is_meta_only_post' => '0',
+            'archive_only' => 'false'
+        ]);
+
+        $headers = [
+            "accept: */*",
+            "content-type: application/x-www-form-urlencoded",
+            "origin: https://www.instagram.com",
+            "referer: https://www.instagram.com/accounts/edit/",
+            "user-agent: " . $this->userAgent,
+            "x-asbd-id: 359341",
+            "x-csrftoken: " . $this->getCsrfToken(),
+            "x-ig-app-id: 936619743392459",
+            "x-instagram-ajax: 1024760320",
+            "x-requested-with: XMLHttpRequest",
+            "x-web-session-id: 6a7f31:tcyzde:uphubx"
+        ];
+
+        curl_setopt($this->session, CURLOPT_URL, $postUrl);
+        curl_setopt($this->session, CURLOPT_POST, true);
+        curl_setopt($this->session, CURLOPT_POSTFIELDS, $postFields);
+        curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
+
+        $postResponse = curl_exec($this->session);
+        if ($this->debug) {
+            echo "<h2>[Post Response]</h2>";
+            echo "<pre>" . htmlspecialchars($postResponse) . "</pre>";
+        }
+
+        $postData = json_decode($postResponse, true);
+        if (isset($postData['status']) && $postData['status'] === 'ok') {
+            return true;
+        }
+
+        return 'Falha ao postar!';
+    }
+
+    private function extractCsrfTokenFromCookieFile()
+    {
+        if (!file_exists($this->cookieFile)) {
+            return null;
+        }
+        $lines = file($this->cookieFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            if (strpos($line, 'csrftoken') !== false) {
+                $parts = preg_split('/\s+/', $line);
+                return end($parts);
+            }
+        }
+        return null;
     }
 }

@@ -18,9 +18,18 @@ if ($insta->loadSession()) {
     }
 }
 
+/**
 $userInfo = $insta->me();
 if ($userInfo) {
     print_r($userInfo);
 } else {
     echo "Não foi possível obter informações do usuário.";
+}
+*/
+
+$result = $insta->post('photo.jpg', 'Minha legenda! ' . date('Y-m-d H:i:s'));
+if ($result === true) {
+    echo "Post feito com sucesso!";
+} else {
+    echo "Erro ao postar: $result";
 }
