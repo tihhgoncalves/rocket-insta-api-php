@@ -37,16 +37,20 @@ if ($userInfo) {
 
 
 // Busca usuário
-$users = $insta->searchUser('cafecomnewsx');
+$user = $insta->searchUser('cafecomnews');
 
-
-die('[PAROU]');
 
 $result = $insta->post('photo.jpg', [
     'caption' => 'Minha legenda! ' . date('Y-m-d H:i:s'), // legenda do post
     'hideLikes' => true, // esconder likes
     'disableComments' => true, // desabilita comentários
     'autosize' => true, // autoajuste de tamanho
+    'collab_user_ids' => [
+        [
+            "position" => [0.5, 0.5],
+            "user_id" => $user['id']
+        ]
+    ]
 ]);
 
 

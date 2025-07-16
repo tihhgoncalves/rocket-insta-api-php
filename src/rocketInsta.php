@@ -171,7 +171,7 @@ class rocketInsta
         if ($this->csrfToken) {
             return $this->csrfToken; // Retorna o CSRF token já carregado
         }
-        
+
         curl_setopt($this->session, CURLOPT_URL, "https://www.instagram.com/accounts/login/");
         curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($this->session, CURLOPT_HEADER, true);
