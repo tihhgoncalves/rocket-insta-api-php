@@ -37,7 +37,8 @@ if ($userInfo) {
 
 
 // Busca usuário
-$user = $insta->searchUser('cafecomnews');
+$user1 = $insta->searchUser('cafecomnews');
+$user2 = $insta->searchUser('rocketprodutoradigital');
 
 
 $result = $insta->post('photo.jpg', [
@@ -48,9 +49,15 @@ $result = $insta->post('photo.jpg', [
     'collab_user_ids' => [
         [
             "position" => [0.5, 0.5],
-            "user_id" => $user['id']
+            "user_id" => $user1['id']
         ]
-    ]
+    ],
+    'mention_user_ids' => [
+        [
+            "position" => [0.1, 0.1],
+            "user_id" => $user2['id']
+        ]
+    ],
 ]);
 
 

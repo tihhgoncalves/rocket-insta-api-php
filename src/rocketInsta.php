@@ -388,18 +388,17 @@ class rocketInsta
             echo "<pre>" . htmlspecialchars($uploadResponse) . "</pre>";
         }
 
-        /** Prepara COLLAB */
+        /** Prepara MENCIONADOS e COLLAB */
         $invite_coauthor_user_ids_string = '';
-        $usertags = '';
+        $usertags = [];
+
         if (!empty($opts['collab_user_ids']) && is_array($opts['collab_user_ids'])) {
-            $coauthor_ids = []; // Só os IDs
-            $usertags_arr = [];
+            $coauthor_ids = [];
 
             foreach ($opts['collab_user_ids'] as $collab_user) {
                 if (!empty($collab_user['user_id'])) {
                     $coauthor_ids[] = $collab_user['user_id'];
-
-                    $usertags_arr[] = [
+                    $usertags[] = [
                         'user_id' => $collab_user['user_id'],
                         'position' => $collab_user['position'] ?? [0.5, 0.5],
                     ];
@@ -409,11 +408,22 @@ class rocketInsta
             if (!empty($coauthor_ids)) {
                 $invite_coauthor_user_ids_string = json_encode($coauthor_ids);
             }
+        }
 
-            if (!empty($usertags_arr)) {
-                $usertags = json_encode(['in' => $usertags_arr]);
+        if (!empty($opts['mention_user_ids']) && is_array($opts['mention_user_ids'])) {
+            foreach ($opts['mention_user_ids'] as $mention_user) {
+                if (!empty($mention_user['user_id'])) {
+                    $usertags[] = [
+                        'user_id' => $mention_user['user_id'],
+                        'position' => $mention_user['position'] ?? [0.5, 0.5],
+                    ];
+                }
             }
         }
+
+        // Gera o JSON final com todos os usertags
+        $usertags = !empty($usertags) ? json_encode(['in' => $usertags]) : '';
+
 
 
         // Agora configure o post
@@ -522,7 +532,7 @@ class rocketInsta
 
     public function searchUser($username)
     {
-        $users = $this->searchUsers('cafecomnews');
+        $users = $this->searchUsers($username);
 
         foreach ($users as $user) {
             if (isset($user['user']) && $user['user']['username'] === $username) {
