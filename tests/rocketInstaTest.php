@@ -12,9 +12,9 @@ if (file_exists($envFile)) {
 $username = $env['USERNAME'] ?? '';
 $password = $env['PASSWORD'] ?? '';
 
-use RocketInsta\rocketInsta;
+use Rocket\rocketInstaAPI;
 
-$insta = new rocketInsta(true);
+$insta = new rocketInstaAPI(true);
 
 if ($insta->loadSession()) {
     echo "Sessão já ativa!";
