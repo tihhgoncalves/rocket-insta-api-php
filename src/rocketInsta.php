@@ -168,7 +168,7 @@ class rocketInsta
     public function getCsrfToken()
     {
 
-        if($this->csrfToken) {
+        if ($this->csrfToken) {
             return $this->csrfToken; // Retorna o CSRF token já carregado
         }
         
@@ -388,6 +388,34 @@ class rocketInsta
             echo "<pre>" . htmlspecialchars($uploadResponse) . "</pre>";
         }
 
+        /** Prepara COLLAB */
+        $invite_coauthor_user_ids_string = '';
+        $usertags = '';
+        if (!empty($opts['collab_user_ids']) && is_array($opts['collab_user_ids'])) {
+            $coauthor_ids = []; // Só os IDs
+            $usertags_arr = [];
+
+            foreach ($opts['collab_user_ids'] as $collab_user) {
+                if (!empty($collab_user['user_id'])) {
+                    $coauthor_ids[] = $collab_user['user_id'];
+
+                    $usertags_arr[] = [
+                        'user_id' => $collab_user['user_id'],
+                        'position' => $collab_user['position'] ?? [0.5, 0.5],
+                    ];
+                }
+            }
+
+            if (!empty($coauthor_ids)) {
+                $invite_coauthor_user_ids_string = json_encode($coauthor_ids);
+            }
+
+            if (!empty($usertags_arr)) {
+                $usertags = json_encode(['in' => $usertags_arr]);
+            }
+        }
+
+
         // Agora configure o post
         $postUrl = 'https://www.instagram.com/api/v1/media/configure/';
         $postFieldsArr = [
@@ -404,6 +432,14 @@ class rocketInsta
             'archive_only' => 'false'
         ];
 
+
+        // Adiciona os campos de collab se existirem
+        if ($invite_coauthor_user_ids_string) {
+            $postFieldsArr['invite_coauthor_user_ids_string'] = $invite_coauthor_user_ids_string;
+        }
+        if ($usertags) {
+            $postFieldsArr['usertags'] = $usertags;
+        }
 
         $postFields = http_build_query($postFieldsArr);
 
@@ -484,7 +520,8 @@ class rocketInsta
         return $data['users'] ?? [];
     }
 
-    public function searchUser($username){
+    public function searchUser($username)
+    {
         $users = $this->searchUsers('cafecomnews');
 
         foreach ($users as $user) {
