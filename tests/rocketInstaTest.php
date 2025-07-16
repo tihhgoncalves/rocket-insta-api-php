@@ -40,7 +40,7 @@ if ($userInfo) {
 $user1 = $insta->searchUser('cafecomnews');
 $user2 = $insta->searchUser('rocketprodutoradigital');
 
-
+/**
 $result = $insta->post('photo.jpg', [
     'caption' => 'Minha legenda! ' . date('Y-m-d H:i:s'), // legenda do post
     'hideLikes' => true, // esconder likes
@@ -66,3 +66,4 @@ if ($result === true) {
 } else {
     echo "Erro ao postar: $result";
 }
+    */

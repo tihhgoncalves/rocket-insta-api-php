@@ -651,8 +651,9 @@ class rocketInsta
 
         $response = curl_exec($this->session);
         if ($this->debug) {
+            $json = json_decode($response, true);
             echo "<h2>[searchUser]</h2>";
-            echo "<pre>" . htmlspecialchars($response) . "</pre>";
+            echo "<pre>" . print_r($json, true) . "</pre>";
         }
         $data = json_decode($response, true);
         return $data['users'] ?? [];
