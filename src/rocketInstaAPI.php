@@ -1,8 +1,8 @@
 <?php
 
-namespace RocketInsta;
+namespace Rocket;
 
-class rocketInsta
+class rocketInstaAPI
 {
     private $cookieFile;
     private $userAgent;

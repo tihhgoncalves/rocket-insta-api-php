@@ -37,9 +37,9 @@ composer require rocket/insta-api
 
 require '../vendor/autoload.php';
 
-use RocketInsta\rocketInsta;
+use Rocket\rocketInstaAPI;
 
-$insta = new rocketInsta(true);
+$insta = new rocketInstaAPI(true);
 
 if ($insta->loadSession()) {
     echo "Sessão já ativa!";
