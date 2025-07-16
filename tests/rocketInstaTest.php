@@ -40,7 +40,7 @@ if ($userInfo) {
 $user1 = $insta->searchUser('cafecomnews');
 $user2 = $insta->searchUser('rocketprodutoradigital');
 
-/**
+
 $result = $insta->post('photo.jpg', [
     'caption' => 'Minha legenda! ' . date('Y-m-d H:i:s'), // legenda do post
     'hideLikes' => true, // esconder likes
@@ -66,4 +66,23 @@ if ($result === true) {
 } else {
     echo "Erro ao postar: $result";
 }
-    */
+
+
+$result = $insta->story('photo.jpg', [
+    'caption' => 'Minha legenda! ' . date('Y-m-d H:i:s'), // legenda do post
+    'autosize' => true, // autoajuste de tamanho
+    'mention_user_ids' => [
+        [
+            "position" => [0.1, 0.1],
+            "user_id" => $user2['id']
+        ]
+    ],
+]);
+
+
+if ($result === true) {
+    echo "Story feito com sucesso!";
+} else {
+    echo "Erro ao postar story: $result";
+}
+
