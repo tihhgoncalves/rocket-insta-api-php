@@ -17,7 +17,7 @@ Uma biblioteca em PHP para integrar de forma simples com a API do Instagram.
 Instale via Composer:
 
 ```sh
-composer require rocket/insta-api
+composer require tihhgoncalves/rocket-insta-api-php
 ```
 
 ---
@@ -37,9 +37,9 @@ composer require rocket/insta-api
 
 require '../vendor/autoload.php';
 
-use RocketInsta\rocketInsta;
+use Rocket\rocketInstaAPI;
 
-$insta = new rocketInsta(true);
+$insta = new rocketInstaAPI(true);
 
 if ($insta->loadSession()) {
     echo "Sessão já ativa!";

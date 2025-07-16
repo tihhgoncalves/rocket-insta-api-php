@@ -14,7 +14,12 @@
   },
   "autoload": {
     "psr-4": {
-      "RocketInsta\\": "src/"
+      "Rocket\\": "src/"
     }
-  }
-}
+  },
+  "repositories": [
+    {
+      "type": "git",
+      "url": "https://github.com/tihhgoncalves/rocket-insta-api-php.git"
+    }
+  ]}
