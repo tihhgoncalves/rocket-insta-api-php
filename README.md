@@ -17,7 +17,7 @@ Uma biblioteca em PHP para integrar de forma simples com a API do Instagram.
 Instale via Composer:
 
 ```sh
-composer require rocket/insta-api
+composer require tihhgoncalves/rocket-insta-api-php
 ```
 
 ---
