@@ -74,6 +74,23 @@ if ($result === true) {
 }
 ```
 
+$storyResult = $insta->story('photo.jpg', [
+    'caption' => 'Minha story!',
+    'mention_user_ids' => [
+        [
+            'user_id' => 123456,
+            'position' => [0.5, 0.5],
+        ]
+    ],
+]);
+
+if ($storyResult === true) {
+    echo "Story publicado!";
+} else {
+    echo "Erro ao postar story: $storyResult";
+}
+```
+
 ---
 
 ## 🙌 Contribuições

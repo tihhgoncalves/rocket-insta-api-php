@@ -20,6 +20,14 @@ class rocketInsta
         'height' => null,  // novo
     ];
 
+    private $defaultStoryOptions = [
+        'caption' => '',
+        'autosize' => true,
+        'width' => null,
+        'height' => null,
+        'mention_user_ids' => []
+    ];
+
     public function __construct($debug = false, $cookieFile = null)
     {
         $this->debug = $debug;
@@ -487,6 +495,126 @@ class rocketInsta
         return 'Falha ao postar!';
     }
 
+    public function story($imagePath, $options = [])
+    {
+        if (!file_exists($imagePath)) {
+            return 'Arquivo de imagem não encontrado!';
+        }
+
+        $opts = array_merge($this->defaultStoryOptions, $options);
+
+        $upload_id = strval(round(microtime(true) * 1000));
+        $uploadUrl = "https://i.instagram.com/rupload_igphoto/fb_uploader_$upload_id";
+        $imageData = file_get_contents($imagePath);
+        $imageSize = filesize($imagePath);
+        $mime = mime_content_type($imagePath);
+
+        if ($opts['autosize']) {
+            list($width, $height) = getimagesize($imagePath);
+        } elseif ($opts['width'] && $opts['height']) {
+            $width = $opts['width'];
+            $height = $opts['height'];
+        } else {
+            $width = 720;
+            $height = 1280;
+        }
+
+        $headers = [
+            "accept: */*",
+            "content-type: $mime",
+            "origin: https://www.instagram.com",
+            "referer: https://www.instagram.com/",
+            "user-agent: " . $this->userAgent,
+            "x-entity-type: $mime",
+            "x-entity-name: fb_uploader_$upload_id",
+            "x-entity-length: $imageSize",
+            "offset: 0",
+            "x-ig-app-id: 936619743392459",
+            "x-instagram-rupload-params: " . json_encode([
+                "media_type" => 1,
+                "upload_id" => $upload_id,
+                "upload_media_height" => $height,
+                "upload_media_width" => $width
+            ]),
+            "x-asbd-id: 359341",
+            "x-instagram-ajax: 1024760320",
+            "x-web-session-id: 6a7f31:tcyzde:uphubx",
+            "priority: u=1, i"
+        ];
+
+        curl_setopt($this->session, CURLOPT_URL, $uploadUrl);
+        curl_setopt($this->session, CURLOPT_POST, true);
+        curl_setopt($this->session, CURLOPT_POSTFIELDS, $imageData);
+        curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
+        curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
+
+        $uploadResponse = curl_exec($this->session);
+        if ($this->debug) {
+            echo "<h2>[Story Upload Response]</h2>";
+            echo "<pre>" . htmlspecialchars($uploadResponse) . "</pre>";
+        }
+
+        $mentions = [];
+        if (!empty($opts['mention_user_ids']) && is_array($opts['mention_user_ids'])) {
+            foreach ($opts['mention_user_ids'] as $mention) {
+                if (!empty($mention['user_id'])) {
+                    $mentions[] = [
+                        'user_id' => $mention['user_id'],
+                        'position' => $mention['position'] ?? [0.5, 0.5],
+                    ];
+                }
+            }
+        }
+        $reel_mentions = !empty($mentions) ? json_encode($mentions) : '';
+
+        $postUrl = 'https://www.instagram.com/api/v1/web/create/configure_to_story/';
+        $postFieldsArr = [
+            'upload_id' => $upload_id,
+            'caption' => $opts['caption']
+        ];
+
+        if ($reel_mentions) {
+            $postFieldsArr['reel_mentions'] = $reel_mentions;
+        }
+
+        $postFields = http_build_query($postFieldsArr);
+
+        $headers = [
+            "accept: */*",
+            "content-type: application/x-www-form-urlencoded",
+            "origin: https://www.instagram.com",
+            "referer: https://www.instagram.com/create/story/",
+            "user-agent: " . $this->userAgent,
+            "x-asbd-id: 359341",
+            "x-csrftoken: " . $this->getCsrfToken(),
+            "x-ig-app-id: 936619743392459",
+            "x-instagram-ajax: 1024760320",
+            "x-requested-with: XMLHttpRequest",
+            "x-web-session-id: 6a7f31:tcyzde:uphubx"
+        ];
+
+        curl_setopt($this->session, CURLOPT_URL, $postUrl);
+        curl_setopt($this->session, CURLOPT_POST, true);
+        curl_setopt($this->session, CURLOPT_POSTFIELDS, $postFields);
+        curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
+
+        $postResponse = curl_exec($this->session);
+        if ($this->debug) {
+            echo "<h2>[Story Response]</h2>";
+            echo "<pre>" . htmlspecialchars($postResponse) . "</pre>";
+        }
+
+        $postData = json_decode($postResponse, true);
+        if (isset($postData['status']) && $postData['status'] === 'ok') {
+            return true;
+        }
+
+        return 'Falha ao postar Story!';
+    }
+
     private function extractCsrfTokenFromCookieFile()
     {
         if (!file_exists($this->cookieFile)) {
@@ -523,8 +651,9 @@ class rocketInsta
 
         $response = curl_exec($this->session);
         if ($this->debug) {
+            $json = json_decode($response, true);
             echo "<h2>[searchUser]</h2>";
-            echo "<pre>" . htmlspecialchars($response) . "</pre>";
+            echo "<pre>" . print_r($json, true) . "</pre>";
         }
         $data = json_decode($response, true);
         return $data['users'] ?? [];
