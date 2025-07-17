@@ -175,7 +175,6 @@ class rocketInstaAPI
 
     public function getCsrfToken()
     {
-
         if ($this->csrfToken) {
             return $this->csrfToken; // Retorna o CSRF token já carregado
         }
@@ -188,7 +187,7 @@ class rocketInstaAPI
 
         // Modificar o cabeçalho User-Agent para simular um navegador
         $headers = [
-            "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            $this->userAgent
         ];
         curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
 
@@ -198,6 +197,12 @@ class rocketInstaAPI
         // Verifica se houve erro no cURL
         if (curl_errno($this->session)) {
             echo "cURL Error: " . curl_error($this->session);
+        }
+
+        $httpCode = curl_getinfo($this->session, CURLINFO_HTTP_CODE);
+
+        if ($httpCode == 429) {
+            die("Falha no login: você foi temporariamente bloqueado pelo Instagram por excesso de requisições (HTTP 429). Tente novamente mais tarde.");
         }
 
         // Captura os cookies da resposta (onde o CSRF token normalmente é armazenado)
