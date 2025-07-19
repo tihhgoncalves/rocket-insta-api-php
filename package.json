@@ -1,0 +1,37 @@
+{
+  "name": "rocket-insta-api-php",
+  "version": "1.0.2",
+  "description": "Projeto para automação de interações no Instagram usando PHP e cURL.",
+  "main": "index.php",
+  "type": "module",
+  "scripts": {
+    "dev": "php -S localhost:8080 -t public",
+    "check": "echo 'Adicione um linter ou verificador se desejar'",
+    "test": "echo 'Testes automatizados vão aqui'"
+  },
+  "keywords": [
+    "php",
+    "instagram",
+    "bot",
+    "curl",
+    "automation",
+    "rocket",
+    "tihhgoncalves"
+  ],
+  "author": {
+    "name": "Tihh Gonçalves",
+    "email": "tihhgoncalves@gmail.com"
+  },
+  "license": "MIT",
+  "engines": {
+    "php": ">=7.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tihhgoncalves/rocket-insta-api-php.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tihhgoncalves/rocket-insta-api-php/issues"
+  },
+  "homepage": "https://github.com/tihhgoncalves/rocket-insta-api-php#readme"
+}
