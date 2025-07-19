@@ -9,6 +9,9 @@ class rocketInstaAPI
     private $session;
     private $debug;
     private $csrfToken = null;
+    private $proxyUrl;
+    private $proxyType;
+    private $proxyAuth;
     private $defaultPostOptions = [
         'caption' => '',
         'hideLikes' => false,
@@ -39,13 +42,89 @@ class rocketInstaAPI
         $this->session = curl_init();
     }
 
+    public function setProxy(string $proxyUrl, string $proxyType = 'http', string $proxyAuth = null)
+    {
+        $this->proxyUrl = $proxyUrl;
+        $this->proxyType = strtolower($proxyType); // http, socks4, socks5
+        $this->proxyAuth = $proxyAuth; // Ex: "usuario:senha" ou null
+    }
+
+
+    private function request($url, $method = 'GET', $headers = [], $body = null, $contentType = 'form', $extra = [], $disableDefaultHeaders = false)
+    {
+        curl_setopt($this->session, CURLOPT_URL, $url);
+        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($this->session, CURLOPT_CUSTOMREQUEST, $method);
+        curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
+        curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
+        curl_setopt($this->session, CURLOPT_FOLLOWLOCATION, $extra['follow'] ?? false);
+        curl_setopt($this->session, CURLOPT_HEADER, $extra['header'] ?? false);
+
+        // Header de conteúdo
+        if ($body !== null) {
+            if ($contentType === 'json') {
+                $body = json_encode($body);
+                $headers[] = 'Content-Type: application/json';
+            } elseif ($contentType === 'form' && is_array($body)) {
+                $body = http_build_query($body);
+                $headers[] = 'Content-Type: application/x-www-form-urlencoded';
+            }
+            curl_setopt($this->session, CURLOPT_POSTFIELDS, $body);
+        }
+
+        // Cabeçalhos padrão, exceto se desativado
+        if (!$disableDefaultHeaders) {
+            $headers[] = 'User-Agent: ' . $this->userAgent;
+            if ($this->csrfToken) {
+                $headers[] = 'x-csrftoken: ' . $this->csrfToken;
+            }
+        }
+
+        // Aplica headers finais
+        if (!empty($headers)) {
+            curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
+        }
+
+        // Aplica proxy, se configurado
+        if (!empty($this->proxyUrl)) {
+            curl_setopt($this->session, CURLOPT_PROXY, $this->proxyUrl);
+
+            switch ($this->proxyType) {
+                case 'socks4':
+                    curl_setopt($this->session, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS4);
+                    break;
+                case 'socks5':
+                    curl_setopt($this->session, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
+                    break;
+                default:
+                    curl_setopt($this->session, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
+                    break;
+            }
+
+            if (!empty($this->proxyAuth)) {
+                curl_setopt($this->session, CURLOPT_PROXYUSERPWD, $this->proxyAuth);
+            }
+        }
+
+        $response = curl_exec($this->session);
+
+        if (curl_errno($this->session)) {
+            if ($this->debug) {
+                echo "cURL Error: " . curl_error($this->session);
+            }
+            return false;
+        }
+
+        return $response;
+    }
+
+
     public function login($username, $password, $saveSession = false)
     {
 
         if ($saveSession) {
 
-            // Garante que o arquivo de cookies exista e esteja acessível
-
+            // Garante que o arquivo de cookies exista (ou cria ele) e esteja acessível
             if (!file_exists($this->cookieFile)) {
                 file_put_contents($this->cookieFile, '');
             }
@@ -54,12 +133,8 @@ class rocketInstaAPI
                 die("Erro: Não foi possível ler o arquivo de cookies.");
             }
 
-            // (Opcional) Garante que tenha permissão
+            // Força permissão do arquivo
             @chmod($this->cookieFile, 0666);
-
-            // Sempre setar antes de qualquer requisição
-            curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
-            curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
         }
 
         // Captura o CSRF token antes de tentar o login
@@ -69,11 +144,21 @@ class rocketInstaAPI
             return 'Erro: Não foi possível obter o CSRF Token';
         }
 
-        // Cabeçalhos de requisição que você pode ter capturado
+        $url = "https://www.instagram.com/api/v1/web/accounts/login/ajax/";
+        $postFields = [
+            'enc_password' => '#PWD_INSTAGRAM_BROWSER:0:' . time() . ':' . $password,
+            'username' => $username,
+            'queryParams' => '{"flo":"true"}',
+            'optIntoOneTap' => 'false',
+            'trustedDeviceRecords' => '{}',
+            'isPrivacyPortalReq' => 'false',
+            'loginAttemptSubmissionCount' => '0',
+            'caaF2DebugGroup' => '0',
+        ];
+
         $headers = [
             "accept: */*",
             "accept-language: pt-BR,pt;q=0.9",
-            "content-type: application/x-www-form-urlencoded",
             "origin: https://www.instagram.com",
             "referer: https://www.instagram.com/?flo=true",
             "sec-ch-prefers-color-scheme: light",
@@ -86,9 +171,7 @@ class rocketInstaAPI
             "sec-fetch-dest: empty",
             "sec-fetch-mode: cors",
             "sec-fetch-site: same-origin",
-            "user-agent: " . $this->userAgent,
             "x-asbd-id: 359341",
-            "x-csrftoken: " . $csrfToken,
             "x-ig-app-id: 936619743392459",
             "x-ig-www-claim: hmac.AR3hHCS5xR8ssjwi_S8xMmc92j6QpdInC8c7x8GUKIN2IiOK",
             "x-instagram-ajax: 1024758508",
@@ -96,38 +179,15 @@ class rocketInstaAPI
             "x-web-session-id: c44ahz:tcyzde:o6u39j"
         ];
 
-        // Parâmetros de POST que são enviados com a requisição
-        $postFields = [
-            'enc_password' => '#PWD_INSTAGRAM_BROWSER:0:' . time() . ':' . $password,
-            'username' => $username,
-            'queryParams' => '{"flo":"true"}',  // Parâmetros de consulta
-            'optIntoOneTap' => 'false',  // Opcional
-            'trustedDeviceRecords' => '{}',  // Device records, pode ser opcional
-            'isPrivacyPortalReq' => 'false',  // Privacidade, opcional
-            'loginAttemptSubmissionCount' => '0', // Tentativas de login
-            'caaF2DebugGroup' => '0',  // Grupo de depuração, opcional
-        ];
+        $response = $this->request(
+            $url,
+            'POST',
+            $headers,
+            $postFields,
+            'form',
+            ['follow' => false, 'header' => false]
+        );
 
-        // Inicializa a requisição cURL
-        curl_setopt($this->session, CURLOPT_URL, "https://www.instagram.com/api/v1/web/accounts/login/ajax/");
-        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($this->session, CURLOPT_POST, true);
-        curl_setopt($this->session, CURLOPT_POSTFIELDS, http_build_query($postFields));  // Envia os parâmetros no corpo da requisição
-        curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($this->session, CURLOPT_HEADER, false);
-
-
-        curl_setopt($this->session, CURLOPT_USERAGENT, $this->userAgent);
-
-        if ($saveSession) {
-            curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
-            curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
-        }
-
-        curl_setopt($this->session, CURLOPT_FOLLOWLOCATION, false);
-
-        // Executa a requisição e obtém a resposta
-        $response = curl_exec($this->session);
         $data = json_decode($response, true);
 
         // Verifica se houve erro no cURL
@@ -142,14 +202,7 @@ class rocketInstaAPI
 
         if (isset($data['authenticated']) && $data['authenticated'] == true) {
             // Força o cURL a processar e salvar os cookies fazendo uma requisição GET
-            curl_setopt($this->session, CURLOPT_URL, "https://www.instagram.com/");
-            curl_setopt($this->session, CURLOPT_POST, false);
-            curl_setopt($this->session, CURLOPT_HTTPGET, true);
-            curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
-            curl_exec($this->session);
-
-            curl_close($this->session); // Fecha para forçar o flush dos cookies
-            $this->session = curl_init(); // Reabre para uso futuro
+            $this->flushCookies();
 
             return true;  // Login bem-sucedido
         }
@@ -179,20 +232,14 @@ class rocketInstaAPI
             return $this->csrfToken; // Retorna o CSRF token já carregado
         }
 
-        curl_setopt($this->session, CURLOPT_URL, "https://www.instagram.com/accounts/login/");
-        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($this->session, CURLOPT_HEADER, true);
-        curl_setopt($this->session, CURLOPT_USERAGENT, $this->userAgent);
-        curl_setopt($this->session, CURLOPT_FOLLOWLOCATION, true);
+        $response = $this->request(
+            "https://www.instagram.com/accounts/login/",
+            'GET',
+            null,
+            'raw',
+            ['header' => true, 'follow' => true]
+        );
 
-        // Modificar o cabeçalho User-Agent para simular um navegador
-        $headers = [
-            $this->userAgent
-        ];
-        curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
-
-        // Faz a requisição GET
-        $response = curl_exec($this->session);
 
         // Verifica se houve erro no cURL
         if (curl_errno($this->session)) {
@@ -239,6 +286,22 @@ class rocketInstaAPI
         return $csrfToken;
     }
 
+    private function flushCookies()
+    {
+        $this->request(
+            'https://www.instagram.com/',
+            'GET',
+            [],
+            null,
+            'raw',
+            ['follow' => false]
+        );
+
+        curl_close($this->session);
+        $this->session = curl_init();
+    }
+
+
     public function loadSession()
     {
         // Verifica se o arquivo de cookies existe e é legível
@@ -246,17 +309,18 @@ class rocketInstaAPI
             return false;
         }
 
-        // Configura o cURL para usar o cookie salvo
-        curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
-        curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
-        curl_setopt($this->session, CURLOPT_URL, "https://www.instagram.com/accounts/edit/");
-        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($this->session, CURLOPT_HEADER, false);
-        curl_setopt($this->session, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($this->session, CURLOPT_USERAGENT, $this->userAgent);
+        $response = $this->request(
+            'https://www.instagram.com/accounts/edit/',
+            'GET',
+            [],         // headers (pode colocar se quiser)
+            null,       // sem corpo
+            'raw',      // tipo 'raw' se quiser deixar o corpo intacto
+            [
+                'follow' => true,
+                'header' => false
+            ]
+        );
 
-        // Faz uma requisição para uma página que só logado acessa
-        $response = curl_exec($this->session);
 
         // Verifica se houve erro no cURL
         if (curl_errno($this->session)) {
@@ -286,16 +350,16 @@ class rocketInstaAPI
 
     public function me()
     {
-        // Garante que o cookie está setado
-        curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
-        curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
-        curl_setopt($this->session, CURLOPT_URL, "https://www.instagram.com/accounts/edit/");
-        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($this->session, CURLOPT_HEADER, false);
-        curl_setopt($this->session, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($this->session, CURLOPT_USERAGENT, $this->userAgent);
+        // Requisição para pegar os dados do usuário logado
+        $response = $this->request(
+            "https://www.instagram.com/accounts/edit/",
+            'GET',
+            [],
+            null,
+            'raw',
+            ['follow' => true, 'header' => false]
+        );
 
-        $response = curl_exec($this->session);
 
         if (curl_errno($this->session)) {
             if ($this->debug) {
@@ -369,7 +433,6 @@ class rocketInstaAPI
             "content-type: $mime",
             "origin: https://www.instagram.com",
             "referer: https://www.instagram.com/",
-            "user-agent: " . $this->userAgent,
             "x-entity-type: $mime",
             "x-entity-name: fb_uploader_$upload_id",
             "x-entity-length: $imageSize",
@@ -387,15 +450,15 @@ class rocketInstaAPI
             "priority: u=1, i"
         ];
 
-        curl_setopt($this->session, CURLOPT_URL, $uploadUrl);
-        curl_setopt($this->session, CURLOPT_POST, true);
-        curl_setopt($this->session, CURLOPT_POSTFIELDS, $imageData);
-        curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
-        curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
+        $uploadResponse = $this->request(
+            $uploadUrl,
+            'POST',
+            $headers,
+            $imageData, // binário
+            'raw',
+            ['follow' => false, 'header' => false]
+        );
 
-        $uploadResponse = curl_exec($this->session);
         if ($this->debug) {
             echo "<h2>[Upload Response]</h2>";
             echo "<pre>" . htmlspecialchars($uploadResponse) . "</pre>";
@@ -455,8 +518,7 @@ class rocketInstaAPI
             'archive_only' => 'false'
         ];
 
-
-        // Adiciona os campos de collab se existirem
+        // Campos opcionais
         if ($invite_coauthor_user_ids_string) {
             $postFieldsArr['invite_coauthor_user_ids_string'] = $invite_coauthor_user_ids_string;
         }
@@ -464,29 +526,25 @@ class rocketInstaAPI
             $postFieldsArr['usertags'] = $usertags;
         }
 
-        $postFields = http_build_query($postFieldsArr);
-
         $headers = [
-            "accept: */*",
-            "content-type: application/x-www-form-urlencoded",
             "origin: https://www.instagram.com",
             "referer: https://www.instagram.com/accounts/edit/",
-            "user-agent: " . $this->userAgent,
             "x-asbd-id: 359341",
-            "x-csrftoken: " . $this->getCsrfToken(),
             "x-ig-app-id: 936619743392459",
             "x-instagram-ajax: 1024760320",
             "x-requested-with: XMLHttpRequest",
             "x-web-session-id: 6a7f31:tcyzde:uphubx"
         ];
 
-        curl_setopt($this->session, CURLOPT_URL, $postUrl);
-        curl_setopt($this->session, CURLOPT_POST, true);
-        curl_setopt($this->session, CURLOPT_POSTFIELDS, $postFields);
-        curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
+        $postResponse = $this->request(
+            $postUrl,
+            'POST',
+            $headers,
+            $postFieldsArr, // pode ser array
+            'form',
+            ['follow' => false, 'header' => false]
+        );
 
-        $postResponse = curl_exec($this->session);
         if ($this->debug) {
             echo "<h2>[Post Response]</h2>";
             echo "<pre>" . htmlspecialchars($postResponse) . "</pre>";
@@ -529,7 +587,6 @@ class rocketInstaAPI
             "content-type: $mime",
             "origin: https://www.instagram.com",
             "referer: https://www.instagram.com/",
-            "user-agent: " . $this->userAgent,
             "x-entity-type: $mime",
             "x-entity-name: fb_uploader_$upload_id",
             "x-entity-length: $imageSize",
@@ -547,15 +604,15 @@ class rocketInstaAPI
             "priority: u=1, i"
         ];
 
-        curl_setopt($this->session, CURLOPT_URL, $uploadUrl);
-        curl_setopt($this->session, CURLOPT_POST, true);
-        curl_setopt($this->session, CURLOPT_POSTFIELDS, $imageData);
-        curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
-        curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
+        $uploadResponse = $this->request(
+            $uploadUrl,
+            'POST',
+            $headers,
+            $imageData,
+            'raw',
+            ['follow' => false, 'header' => false]
+        );
 
-        $uploadResponse = curl_exec($this->session);
         if ($this->debug) {
             echo "<h2>[Story Upload Response]</h2>";
             echo "<pre>" . htmlspecialchars($uploadResponse) . "</pre>";
@@ -584,29 +641,25 @@ class rocketInstaAPI
             $postFieldsArr['reel_mentions'] = $reel_mentions;
         }
 
-        $postFields = http_build_query($postFieldsArr);
-
         $headers = [
-            "accept: */*",
-            "content-type: application/x-www-form-urlencoded",
             "origin: https://www.instagram.com",
             "referer: https://www.instagram.com/create/story/",
-            "user-agent: " . $this->userAgent,
             "x-asbd-id: 359341",
-            "x-csrftoken: " . $this->getCsrfToken(),
             "x-ig-app-id: 936619743392459",
             "x-instagram-ajax: 1024760320",
             "x-requested-with: XMLHttpRequest",
             "x-web-session-id: 6a7f31:tcyzde:uphubx"
         ];
 
-        curl_setopt($this->session, CURLOPT_URL, $postUrl);
-        curl_setopt($this->session, CURLOPT_POST, true);
-        curl_setopt($this->session, CURLOPT_POSTFIELDS, $postFields);
-        curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
+        $postResponse = $this->request(
+            $postUrl,
+            'POST',
+            $headers,
+            $postFieldsArr,
+            'form',
+            ['follow' => false, 'header' => false]
+        );
 
-        $postResponse = curl_exec($this->session);
         if ($this->debug) {
             echo "<h2>[Story Response]</h2>";
             echo "<pre>" . htmlspecialchars($postResponse) . "</pre>";
@@ -638,23 +691,24 @@ class rocketInstaAPI
     public function searchUsers($query)
     {
         $url = "https://www.instagram.com/api/v1/web/search/topsearch/?context=user&include_reel=true&query=" . urlencode($query);
+
         $headers = [
-            "accept: */*",
-            "user-agent: " . $this->userAgent,
+            "referer: https://www.instagram.com/",
             "x-ig-app-id: 936619743392459",
             "x-requested-with: XMLHttpRequest",
-            "x-csrftoken: " . $this->getCsrfToken(),
-            "referer: https://www.instagram.com/",
             "x-asbd-id: 359341",
             "x-web-session-id: x1r9nc:1ungui:knycvf"
         ];
-        curl_setopt($this->session, CURLOPT_URL, $url);
-        curl_setopt($this->session, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($this->session, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($this->session, CURLOPT_COOKIEFILE, $this->cookieFile);
-        curl_setopt($this->session, CURLOPT_COOKIEJAR, $this->cookieFile);
 
-        $response = curl_exec($this->session);
+        $response = $this->request(
+            $url,
+            'GET',
+            $headers,
+            null,
+            'raw',
+            ['follow' => false, 'header' => false]
+        );
+
         if ($this->debug) {
             $json = json_decode($response, true);
             echo "<h2>[searchUser]</h2>";
